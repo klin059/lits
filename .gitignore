@@ -9,4 +9,5 @@ saved_models/
 *.ipynb
 *.npy
 *.nii
+*.hdf5
 EDA.py
