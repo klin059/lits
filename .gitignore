@@ -1,0 +1,12 @@
+__pycache__
+
+archive/
+kaggle/
+env/
+requirements.txt
+dist/
+saved_models/
+*.ipynb
+*.npy
+*.nii
+EDA.py
