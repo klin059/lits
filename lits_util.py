@@ -26,7 +26,7 @@ class Param():
         self.patch_shape = (128, 128, 16)
         self.equalize_histogram = False  
         self.normalize = True
-        self.zdist = 5  # set z spacing to 2mm
+        self.zdist = 2  # set z spacing to zdist mm
         self.output_type = 'npy'  
         
         # others

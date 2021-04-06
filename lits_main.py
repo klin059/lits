@@ -12,7 +12,6 @@ from tensorflow.keras.callbacks import ModelCheckpoint,ReduceLROnPlateau
 import os
 
 param = lits_util.Param(data_dir = 'kaggle/input', partial_data = True)
-
 input_size = [i for i in param.patch_shape]
 input_size.append(param.num_channels)
 model = unet3d.unet3d(input_size = input_size, 
@@ -23,7 +22,7 @@ model = unet3d.unet3d(input_size = input_size,
 #dot_img_file = 'model.png'
 #tf.keras.utils.plot_model(model, to_file=dot_img_file, show_shapes=True)
 
-
+metric_name = "val_dice_coef"
 model.compile(optimizer=Adam(lr=0.01), loss=loss.jaccard_distance_loss,
                   metrics=[loss.dice_coef])
 
@@ -34,31 +33,38 @@ checkpoint_filepath = 'model.hdf5'
 model_checkpoint_callback = ModelCheckpoint(
     filepath=checkpoint_filepath,
     save_weights_only=True,
-    monitor='val_'+ model.metrics_names[-1],
+    monitor='val_dice_coef',
     mode='max',
     save_best_only=True)
 
-reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=5,
+reduce_lr = ReduceLROnPlateau(monitor='val_dice_coef', factor=0.5, patience=5,
                               verbose=0, mode='auto', min_delta=0.000001,
                               cooldown=0, min_lr=0.000001)
-
-history = model.fit_generator(
-            generator = train_generator,
+n_epochs = 10
+history = model.fit(
+            x = train_generator,
             validation_data = val_generator,
-            epochs = 2,
-            verbose = 3,        
-            callbacks=[model_checkpoint_callback, reduce_lr])
-
-
+            epochs = n_epochs,
+            verbose = 3, 
+            callbacks=[model_checkpoint_callback, reduce_lr]) 
 
 lits_util.plot_history(history, 'loss', 'val_loss', start_ind=0)
 lits_util.plot_history(history, model.metrics_names[-1], 'val_'+model.metrics_names[-1], start_ind=0)
 
+best_epoch = np.argmax(history.history[metric_name])
+print(f'Best epoch at {best_epoch+1} out of {n_epochs} epochs')
+
+
+model.load_weights('model.hdf5')
 test_generator = lits_util.DataGenerator2class(
             param, param.test_list, shuffle = False
         )
-loss_val, metric_val = model.evaluate_generator(test_generator)
+loss_val, metric_val = model.evaluate(x = test_generator)
+
 print("loss_value, metric_value = ", loss_val, metric_val)
+
+model.save("final_model")
+
 
 ## eval on the entire scan
 
