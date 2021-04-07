@@ -11,29 +11,6 @@ from tensorflow.keras import backend as K
 #from medpy import metric
 #from surface import Surface
 
-#def soft_dice_loss(y_true, y_pred, axis=(0, 1, 2, 3), 
-#                   epsilon=1):
-#    """
-#    compute soft dice loss
-#    """
-#    dice_numerator =2* K.sum(y_pred * y_true,axis=axis) + epsilon
-#    dice_denominator = (K.sum(y_pred**2,axis=axis) + K.sum(y_true**2,axis=axis)) + epsilon
-#    dice_loss = 1 - K.mean(dice_numerator / dice_denominator)
-#
-#    return dice_loss
-#
-#def dice_coefficient(y_true, y_pred, axis=(0, 1, 2, 3), 
-#                     epsilon=0.00001):
-#    """
-#    Compute mean dice coefficient over all classes.     
-#    """
-#    
-#    dice_numerator =2* K.sum(y_pred * y_true,axis=axis) + epsilon
-#    dice_denominator = (K.sum(y_pred,axis=axis) + K.sum(y_true,axis=axis)) + epsilon
-#    dice_coefficient = K.mean(dice_numerator / dice_denominator)
-#
-#    return dice_coefficient
-
 def jaccard_distance_loss(y_true, y_pred, axis=(0,1,2,3), smooth=100):
     """
     Jaccard = (|X & Y|)/ (|X|+ |Y| - |X & Y|)

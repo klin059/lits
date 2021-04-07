@@ -144,4 +144,4 @@ if __name__ == "__main__":
         
         np.save('vol'+ str(key)+'.npy', vol)
         np.save('mask'+ str(key)+'.npy', mask)
-        break
+        

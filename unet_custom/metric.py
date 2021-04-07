@@ -2,6 +2,8 @@
 """
 Created on Mon Apr  5 23:13:59 2021
 
+default mask shape (n_batch, x, y, z, n_classes)
+
 @author: klin0
 """
 

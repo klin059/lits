@@ -7,7 +7,6 @@ Created on Mon Mar 29 16:11:46 2021
 # unet 
 import tensorflow as tf
 from tensorflow.keras.models import Model
-#from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dropout, concatenate, Conv2DTranspose, Cropping2D
 from tensorflow.keras.layers import (
         BatchNormalization,
         Conv3D,
@@ -22,7 +21,6 @@ from tensorflow.keras.layers import (
         add,
         Activation,
     )
-#from tensorflow.keras import backend as K
 
 def conv_3dblock(inputs, n_filters, kernel_size = (3,3,3), padding = 'same', dropout = 0.1, revert = False):
     if not revert:

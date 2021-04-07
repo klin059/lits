@@ -9,12 +9,11 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-
 class Param():
     '''
     parameter class to store all the parameters
     '''
-    def __init__(self, data_dir='kaggle/input', partial_data = False):
+    def __init__(self, data_dir='kaggle\\input', partial_data = False):
         # problem/data parameters
         self.num_channels = 1
         self.num_classes = 2  # ignore background class
@@ -42,7 +41,8 @@ class Param():
         # NN - training
         
         
-    def data_split(self, ratio = [0.6, 0.8]):
+    def data_split(self, ratio = [0.6, 0.8], seed = 0):
+        # functions to randomize train-validation-test set
         indices = [i for i in range(self.n_samples)]
         if self.partial_data:
             self.training_list = [0,1]
@@ -50,12 +50,12 @@ class Param():
             self.test_list = [100]
             indices = [i for i in [0, 1, 10, 100]]
         else:
+            np.random.seed(seed)
             indices = [i for i in range(self.n_samples)]       
             np.random.shuffle(indices)
             splits = np.split(indices, [int(0.60*self.n_samples),int(0.80*self.n_samples)])
             self.training_list, self.validation_list, self.test_list = splits
         
-
 class DataGenerator2class(tf.keras.utils.Sequence):
     """ generate samples for liver segmentation and lesion segmentation 
     i.e. mask is of shape (self.batch_size, 2, x,y,z)
@@ -90,7 +90,7 @@ class DataGenerator2class(tf.keras.utils.Sequence):
         'Generates data containing batch_size samples'
         
         # Initialization
-        # patch_per_ID means generate patch_per_ID patches for one volume loaded
+        # patch_per_ID means generating patch_per_ID patches for one volume loaded
         X = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_channels),
                      dtype=np.float64)
         y = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_classes),
@@ -137,6 +137,52 @@ class DataGenerator2class(tf.keras.utils.Sequence):
             mask_patch[i] = mask[:,:,start_index:end_index]
         return vol_patch[..., np.newaxis], mask_patch
 
+# model prediction / utility
+def model_prediction(model, ID, param, threshold = 0.5):
+    """
+    load volume by ID and make mask predictions
+    return liver_mask and lesion_mask
+    """
+    # load data
+    vol = np.load(os.path.join(param.data_dir, 'vol' + str(ID) + '.npy'))
+    vol_depth = vol.shape[-1]
+    vol_shape = vol.shape
+    vol = vol[..., np.newaxis]
+    
+    patch_depth = param.patch_shape[-1]
+    
+    # iterate by patch shape and predict y_patch
+    starting_indexes = [ind for ind in range(0, vol_depth-patch_depth, patch_depth)]
+    if starting_indexes[-1] < vol_depth-patch_depth:
+        # add the patch ending at the last depth index
+        starting_indexes.append(vol_depth-patch_depth)
+    
+    y_pred = np.zeros((1, *vol_shape, 2))
+    last_ind = 0
+    for depth in range(0, vol_depth-patch_depth, patch_depth):
+        y_patch_pred = model.predict(vol[np.newaxis, :,:,depth:depth+patch_depth, :])
+        y_patch_pred = y_patch_pred > threshold
+        # control to determin if there are overlapping segments with previous iteration
+        if last_ind < depth:
+            # use logical_or to handle potential overlaps predicted by the previous iteration
+            y_pred[:,:,:,depth:depth+patch_depth,:] = np.logical_or(
+                                                                y_patch_pred, 
+                                                                y_pred[:,:,:,depth:depth+patch_depth,:]
+                                                                )
+        else:
+            y_pred[:,:,:,depth:depth+patch_depth,:] = y_patch_pred
+        last_ind = depth+patch_depth
+    y_pred.astype('int')
+    
+    return y_pred[0,:,:,:,0], y_pred[0,:,:,:,1]
+
+def get_masks(ID, param):
+    mask = np.load(os.path.join(param.data_dir, 'mask' + str(ID) + '.npy'))
+    mask_liver = mask > 0
+    mask_lesion = mask == 2
+    return mask_liver, mask_lesion
+
+# visualizations
 def plot_history(history, train_metric, val_metric, start_ind = 0):  
     # plot training and validation matrices  over epochs
     n_epochs = len(history.history[train_metric])
@@ -147,16 +193,49 @@ def plot_history(history, train_metric, val_metric, start_ind = 0):
     ax.set_ylabel(train_metric)
     ax.legend(loc='upper right')
     fig.tight_layout()
+    
+def plot_scan_and_masks(index, vol, mask = None, pred_mask = None):
+    """
+    pred_mask is the predicted mask in shape (width, height, depth)
+    """
+    if index >= vol.shape[-1] or index < 0:
+        raise ValueError("Index out of range")
+        
+    fig_width = 10
+    if mask is not None and pred_mask is not None:
+        fig, axes = plt.subplots(nrows = 1, ncols = 3, figsize = (fig_width, fig_width*3))
+        axes[0].imshow(vol[:,: , index], cmap = 'gray')
+        axes[1].imshow(mask[... , index], cmap = 'gray')
+        axes[2].imshow(pred_mask[..., index], cmap = 'gray')
+        
+    elif mask is not None:
+        fig, axes = plt.subplots(nrows = 1, ncols = 2, figsize = (fig_width, fig_width*2))
+        axes[0].imshow(vol[..., index], cmap = 'gray')
+        axes[1].imshow(mask[..., index], cmap = 'gray')
+    elif pred_mask is not None:
+        fig, axes = plt.subplots(nrows = 1, ncols = 2, figsize = (fig_width, fig_width*2))
+        axes[1].imshow(pred_mask[..., index], cmap = 'gray')
+        axes[0].imshow(vol[..., index], cmap = 'gray')
+    else:
+        fig, axes = plt.subplots(nrows = 1, ncols = 1)
+        axes.imshow(vol[..., index], cmap = 'gray')
+    plt.show()
+    plt.close()
 
-#def load_and_predict(base_dir, ID, model):
-#    vol = np.load(os.path.join(base_dir, 'vol' + str(ID) + '.npy'))
-#    mask = np.load(os.path.join(base_dir, 'mask' + str(ID) + '.npy'))
-#    max_index = vol.shape[-1]-self.dim[-1]
-#    start_index = np.random.choice([i for i in range(max_index)])
-#    end_index = start_index + self.dim[-1]
-#    return vol[:,:,start_index:end_index, np.newaxis], mask[:,:,start_index:end_index]
+def plot_mask_comparison_over_vol(vol, mask, pred_mask, index_start = 0, index_end = None, n_samples = 10):
+    """ plot volume, mask and predicted mask slices over index_start, index_end with even spaced n_samples
+    """
+    if index_end is None:
+        index_end = vol.shape[-1]
     
-    
+    indices = np.linspace(index_start, index_end, num=n_samples, dtype = 'int')
+    for ind in indices:
+        plot_scan_and_masks(ind, vol, mask, pred_mask)
+# logging
+
+
+
+
         
         
         

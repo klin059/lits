@@ -94,6 +94,7 @@ if __name__ == "__main__":
     # original unet model architecture as described in the unet paper (with "valid" padding)
 #    orig_model = unet2d(input_size = (572, 572, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'valid')
 #    orig_model.summary()
+    
     # unet with "same" padding
     same_padding_model = unet2d(input_size = (512, 512, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same')
     same_padding_model.summary()
