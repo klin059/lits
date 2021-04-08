@@ -71,8 +71,10 @@ test_generator = lits_util.DataGenerator2class(
         )
 loss_val, metric_val = model.evaluate(x = test_generator)
 
-print("loss_value, metric_value = ", loss_val, metric_val)
+print("Test set loss_value, metric_value = ", loss_val, metric_val)
 
 model.save(model_output_directory)
+
+
 
 

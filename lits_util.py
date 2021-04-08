@@ -222,14 +222,13 @@ def plot_scan_and_masks(index, vol, mask = None, pred_mask = None):
     plt.show()
     plt.close()
 
-def plot_mask_comparison_over_vol(vol, mask, pred_mask, index_start = 0, index_end = None, n_samples = 10):
+def plot_mask_comparison_over_vol(vol, mask, pred_mask, index_start = 0, index_end = None, step = 3):
     """ plot volume, mask and predicted mask slices over index_start, index_end with even spaced n_samples
     """
     if index_end is None:
         index_end = vol.shape[-1]
     
-    indices = np.linspace(index_start, index_end, num=n_samples, dtype = 'int')
-    for ind in indices:
+    for ind in range(index_start, index_end, step):
         plot_scan_and_masks(ind, vol, mask, pred_mask)
 # logging
 
