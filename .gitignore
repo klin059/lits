@@ -11,3 +11,4 @@ saved_models/
 *.nii
 *.hdf5
 EDA.py
+final_model
