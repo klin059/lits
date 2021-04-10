@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 class Param():
     '''
     parameter class to store all the parameters
-    '''
-    def __init__(self, data_dir='kaggle\\input', partial_data = False):
+    '''    
+    def __init__(self, data_dir='kaggle\\input', partial_data = False, resize_option = "by_zdist"):
         # problem/data parameters
         self.num_channels = 1
         self.num_classes = 2  # ignore background class
@@ -25,8 +25,15 @@ class Param():
         self.patch_shape = (128, 128, 16)
         self.equalize_histogram = False  
         self.normalize = True
-        self.zdist = 2  # set z spacing to zdist mm
-        self.output_type = 'npy'  
+        self.resize_option = resize_option  # options are "by_zdist" or "by_vol"
+        self.zoom_order = 3
+        if self.resize_option == "by_zdist":
+            self.zdist = 2  # set z spacing to zdist mm, only vlid when resize option is by zdist
+        elif self.resize_option == "by_vol":
+            self.resized_vol_shape = (128, 128, 128)  # used for resizing volume to certain shape
+        else:
+            raise ValueError(f"{self.resize_option} is not a valid resize option")
+        self.output_type = 'npy'
         
         # others
         self.verbose = 2
@@ -136,6 +143,69 @@ class DataGenerator2class(tf.keras.utils.Sequence):
             vol_patch[i] = vol[:,:,start_index:end_index]
             mask_patch[i] = mask[:,:,start_index:end_index]
         return vol_patch[..., np.newaxis], mask_patch
+    
+class DataGenerator_liverMask_wholeVolume(tf.keras.utils.Sequence):
+    """ generate samples for liver segmentation with the whole volume 
+    defined in param.resized_vol_shape
+    """
+    def __init__(self, param, sample_list, shuffle = True):
+        """
+        sample_list are ID numbers of the training_list
+        """
+        self.batch_size = param.batch_size
+        self.shuffle = shuffle
+        self.base_dir = param.data_dir
+        self.dim = param.resized_vol_shape
+        self.num_channels = param.num_channels
+        self.num_classes = param.num_classes
+        self.verbose = param.verbose
+        self.sample_list = sample_list  
+        self.on_epoch_end()
+#        self.patch_per_ID = param.patch_per_ID
+
+    def on_epoch_end(self):
+        'Updates indexes after each epoch'
+        self.indexes = np.arange(len(self.sample_list))
+        if self.shuffle == True:
+            np.random.shuffle(self.indexes)
+
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        return int(np.floor(len(self.sample_list) / self.batch_size))
+
+    def __data_generation(self, list_IDs_temp):
+        
+        'Generates data containing batch_size samples'
+        
+        # Initialization
+        # patch_per_ID means generating patch_per_ID patches for one volume loaded
+        X = np.zeros((self.batch_size, *self.dim, self.num_channels),
+                     dtype=np.float64)
+        y = np.zeros((self.batch_size, *self.dim, self.num_classes),
+                     dtype=np.float64)
+
+        # Generate data
+        for i, ID in enumerate(list_IDs_temp):
+            vol = np.load(os.path.join(self.base_dir, 'vol' + str(ID) + '.npy'))
+            mask = np.load(os.path.join(self.base_dir, 'mask' + str(ID) + '.npy'))
+            X[i]= vol[..., np.newaxis]
+            mask = mask>0            
+            y[i,:,:,:,0] = mask
+
+        return X, y
+    
+    def __getitem__(self, index):
+        'Generate one batch of data'
+        # Generate indexes of the batch
+        indexes = self.indexes[
+                  index * self.batch_size: (index + 1) * self.batch_size]
+        # Find list of IDs
+        sample_list_temp = [self.sample_list[k] for k in indexes]
+        # Generate data
+        X, y = self.__data_generation(sample_list_temp)
+
+        return X, y
+    
 
 # model prediction / utility
 def model_prediction(model, ID, param, threshold = 0.5):
