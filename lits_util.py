@@ -194,14 +194,14 @@ def plot_history(history, train_metric, val_metric, start_ind = 0):
     ax.legend(loc='upper right')
     fig.tight_layout()
     
-def plot_scan_and_masks(index, vol, mask = None, pred_mask = None):
+def plot_scan_and_masks(index, vol, mask = None, pred_mask = None, fig_width = 15):
     """
     pred_mask is the predicted mask in shape (width, height, depth)
     """
     if index >= vol.shape[-1] or index < 0:
         raise ValueError("Index out of range")
         
-    fig_width = 10
+    fig_width = fig_width
     if mask is not None and pred_mask is not None:
         fig, axes = plt.subplots(nrows = 1, ncols = 3, figsize = (fig_width, fig_width*3))
         axes[0].imshow(vol[:,: , index], cmap = 'gray')
