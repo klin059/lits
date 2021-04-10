@@ -16,25 +16,32 @@ class Param():
     '''
     parameter class to store all the parameters
     '''
-    def __init__(self):
+    def __init__(self, resize_option = "by_zdist"):
         self.window_min = -100
         self.window_max = 400
-        self.patch_shape = (128, 128, 16)
+        self.patch_shape = (128, 128, 16)  # used for resizing by slice spacing
         self.equalize_histogram = False  
         self.normalize = True
-        self.zdist = 2  # set z spacing to zdist mm
-        self.output_type = 'npy'  
-
+        self.resize_option = resize_option  # options are "by_zdist" or "by_vol"
+        self.zoom_order = 3
+        if self.resize_option == "by_zdist":
+            self.zdist = 2  # set z spacing to zdist mm, only vlid when resize option is by zdist
+        elif self.resize_option == "by_vol":
+            self.resized_vol_shape = (128, 128, 64)  # used for resizing volume to certain shape
+        else:
+            raise ValueError(f"{self.resize_option} is not a valid resize option")
+        
+        self.output_type = 'npy' 
 
 
 # preprocessing functions
 def read_nii(f):
     img_obj = nib.load(f)
-    zdist = img_obj.header['srow_z'][-2]
     img_data = img_obj.get_fdata()
-    return img_data, zdist
+    
+    return img_data, img_obj.header
 
-def hist_eq(image, number_bins=20):
+def hist_eq(image, number_bins=32):
     # histogram equalization
     # adopt from http://www.janeriksolem.net/2009/06/histogram-equalization-with-python-and.html
     
@@ -71,27 +78,42 @@ def norm_zscore(nparray):
 
 def resize_volume(orig_volume, zdist, params, order):
     """
-    resize scans to desired dimension defined in parameters
+    resize orig_volume to desired dimension defined in parameters
+    zdist: zdist of the volume
     """
     resize_factor = [0]*3
-    for i in range(2):
-        resize_factor[i] = params.patch_shape[i]/orig_volume.shape[i]
-    # rescale scan spacing to 2mm
-    resize_factor[2] = zdist/params.zdist
+    if params.resize_option == "by_zdist":
+        for i in range(2):
+            resize_factor[i] = params.patch_shape[i]/orig_volume.shape[i]
+        # rescale scan spacing to 2mm
+        resize_factor[2] = zdist/params.zdist
+    elif params.resize_option == "by_vol":
+        for i in range(3):
+            resize_factor[i] = params.resized_vol_shape[i]/orig_volume.shape[i]
+    else:
+        raise ValueError(f"{params.resize_option} is not a valid resize option")
     resized_vol = ndimage.zoom(orig_volume, resize_factor, order = order)
     return resized_vol
 
+def upsample_volume(downsampled_vol, original_vol_shape, order):
+    resize_factor = [0]*3
+    for i in range(3):
+        resize_factor[i] = original_vol_shape[i]/downsampled_vol.shape[i]
+    return ndimage.zoom(downsampled_vol, resize_factor, order = order)
+
 def preprocessing_vol(f_vol, param):
     
-    vol, zdist = read_nii(f_vol)
+    vol, header = read_nii(f_vol)
+    zdist = header['srow_z'][-2]
     # windowing
     vol = np.clip(vol, param.window_min, param.window_max)  
     # resizing vol
-    vol = resize_volume(vol, zdist, params, order = 3)
+    vol = resize_volume(vol, zdist, param, order = param.zoom_order)
     
     # histogram equalization
     if param.equalize_histogram:
-        vol = hist_eq(vol)
+        for i in range(vol.shape[-1]):
+            vol[:,:,i] = hist_eq(vol[:,:,i])
     
     # normalizing
     if param.normalize:
@@ -103,7 +125,7 @@ def preprocessing_vol(f_vol, param):
 
 def preprocessing_mask(f_mask, zdist, param):
     mask, _ = read_nii(f_mask)
-    mask = resize_volume(mask, zdist, params, order = 0)
+    mask = resize_volume(mask, zdist, param, order = param.zoom_order)
     mask = np.rint(mask)
     return mask.astype(int)
     
@@ -116,11 +138,11 @@ def load_filepaths_to_dictionaries(path):
     segments = {}
     for dirname, _, filenames in os.walk(path):
         for filename in filenames:
-            if filename[:3] == 'vol':
+            if filename.startswith('volume-'):
                 num = filename.split('-')[1]
                 num = num.split('.')[0]
                 volumes[int(num)] = os.path.join(dirname, filename)
-            elif filename[:3] == 'seg':
+            elif filename.startswith('segmentation-'):
                 num = filename.split('-')[1]
                 num = num.split('.')[0]
                 segments[int(num)] = os.path.join(dirname, filename)
@@ -132,7 +154,7 @@ def load_filepaths_to_dictionaries(path):
 
 if __name__ == "__main__":
     path = r'kaggle/input'
-    params = Param()
+    params = Param(resize_option = "by_vol")  
 
     volume_dict, segment_dict = load_filepaths_to_dictionaries(path = path)
     
@@ -140,8 +162,18 @@ if __name__ == "__main__":
         vol, zdist = preprocessing_vol(volume_dict[key], params) 
         mask = preprocessing_mask(segment_dict[key], zdist, params)
         if vol.shape != mask.shape:
-            print("key, vol, mask: " + key + vol.shape + mask.shape)
+            print("key, vol, mask: ", str(key), vol.shape, mask.shape)
+        break
         
         np.save('vol'+ str(key)+'.npy', vol)
         np.save('mask'+ str(key)+'.npy', mask)
+    
+    # visualization
+    # upsample vol and mask
+    orig_vol, _ = read_nii(volume_dict[key])
+    orig_mask, _ = read_nii(segment_dict[key])
+    up_vol = upsample_volume(vol, orig_vol.shape, order = 3)
+    up_mask = upsample_volume(mask, orig_vol.shape, order = 3)
+    import lits_util
+    lits_util.plot_mask_comparison_over_vol(up_vol, orig_mask, up_mask, index_start = 36, step = 2)
         
