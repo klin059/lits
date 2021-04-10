@@ -21,6 +21,7 @@
         will be used as the output (hence there will be 12 patches in one batch)
     - Sample script at lits_training.py or at https://www.kaggle.com/klin059/lits-2mm-v2-load-weights
     - No data augmentation were used but it was fairly easy to implement augmentations in the generator class
+    - Jaccard distance is used as loss, dice coefficient is used as evaluation metric
     
 3. Results
     - https://www.kaggle.com/klin059/lits-2mm-v3
