@@ -27,10 +27,9 @@ class Param():
         if self.resize_option == "by_zdist":
             self.zdist = 2  # set z spacing to zdist mm, only vlid when resize option is by zdist
         elif self.resize_option == "by_vol":
-            self.resized_vol_shape = (128, 128, 64)  # used for resizing volume to certain shape
+            self.resized_vol_shape = (128, 128, 128)  # used for resizing volume to certain shape
         else:
             raise ValueError(f"{self.resize_option} is not a valid resize option")
-        
         self.output_type = 'npy' 
 
 
@@ -163,17 +162,17 @@ if __name__ == "__main__":
         mask = preprocessing_mask(segment_dict[key], zdist, params)
         if vol.shape != mask.shape:
             print("key, vol, mask: ", str(key), vol.shape, mask.shape)
-        break
         
         np.save('vol'+ str(key)+'.npy', vol)
         np.save('mask'+ str(key)+'.npy', mask)
     
     # visualization
     # upsample vol and mask
+    k=10
     orig_vol, _ = read_nii(volume_dict[key])
     orig_mask, _ = read_nii(segment_dict[key])
     up_vol = upsample_volume(vol, orig_vol.shape, order = 3)
     up_mask = upsample_volume(mask, orig_vol.shape, order = 3)
     import lits_util
-    lits_util.plot_mask_comparison_over_vol(up_vol, orig_mask, up_mask, index_start = 36, step = 2)
+    lits_util.plot_mask_comparison_over_vol(up_vol, orig_mask, orig_mask+up_mask, index_start = 46, step = 4)
         
