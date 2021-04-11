@@ -67,7 +67,7 @@ for key in history.history:
 
 
 model.load_weights(checkpoint_filepath)
-test_generator = lits_util.DataGenerator2class(
+test_generator = lits_util.DataGenerator_liverMask_wholeVolume(
             param, param.test_list, shuffle = False
         )
 loss_val, metric_val = model.evaluate(x = test_generator)
@@ -76,6 +76,9 @@ print("Test set loss_value, metric_value = ", loss_val, metric_val)
 
 model.save(model_output_directory)
 
+import pickle
+with open("history.p", "wb") as f:
+    pickle.dump(history.history, f)
 
 
 
