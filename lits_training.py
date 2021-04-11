@@ -19,8 +19,8 @@ else:
     n_epochs = 100
 
 data_dir = 'kaggle/input'  
-checkpoint_filepath = 'model.hdf5'
-model_output_directory = "final_model"
+checkpoint_filepath = 'kaggle/models/model_3dpatch/model.hdf5'
+model_output_directory = "kaggle/models/model_3dpatch"
 # -----------------------------------
 
 param = lits_util.Param(data_dir = data_dir, partial_data = partial_data)  
@@ -30,7 +30,8 @@ model = unet3d.unet3d(input_size = input_size,
                n_classes=2, 
                dropout=0.1, 
                out_activation='sigmoid', 
-               padding = 'same')
+               padding = 'same',
+               res_connect = True)
 
 metric_name = "val_dice_coef"
 model.compile(optimizer=Adam(lr=0.01), loss=loss.jaccard_distance_loss,
@@ -74,6 +75,8 @@ loss_val, metric_val = model.evaluate(x = test_generator)
 print("Test set loss_value, metric_value = ", loss_val, metric_val)
 
 model.save(model_output_directory)
+
+
 
 
 
