@@ -36,7 +36,7 @@ def conv_3dblock(inputs, n_filters, kernel_size = (3,3,3), padding = 'same', dro
     x = Conv3D(n2, kernel_size, activation = 'relu', padding = padding)(inputs)
     x = BatchNormalization()(x)
     if res_connect:
-        res = Conv3D(n2, kernel_size, activation = 'relu', padding = padding)(inputs)
+        res = Conv3D(n2, kernel_size = (1,1,1), activation = 'relu', padding = padding)(inputs)
         x = add([x, res])
     return x
 

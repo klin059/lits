@@ -13,7 +13,7 @@ def conv2d_block(inputs, n_filters, kernel_size = 3, padding = 'valid', res_conn
     x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(inputs)
     x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(x)
     if res_connect:
-        res = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(inputs)
+        res = Conv2D(n_filters, kernel_size = 1, padding = padding, activation = 'relu')(inputs)
         x = add([x, res])
     return x
 
