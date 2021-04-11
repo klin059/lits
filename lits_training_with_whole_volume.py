@@ -31,7 +31,8 @@ model = unet3d.unet3d(input_size = input_size,
                n_classes=1, 
                dropout=0.1, 
                out_activation='sigmoid', 
-               padding = 'same')
+               padding = 'same',
+               res_connect = True)
 
 metric_name = "val_dice_coef"
 model.compile(optimizer=Adam(lr=0.01), loss=loss.jaccard_distance_loss,
