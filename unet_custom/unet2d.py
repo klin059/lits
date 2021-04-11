@@ -6,16 +6,19 @@ Created on Mon Mar 29 16:11:46 2021
 """
 # unet 
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dropout, concatenate, Conv2DTranspose, Cropping2D
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dropout, concatenate, Conv2DTranspose, Cropping2D, add
 
-def conv2d_block(inputs, n_filters, kernel_size = 3, padding = 'valid'):
+def conv2d_block(inputs, n_filters, kernel_size = 3, padding = 'valid', res_connect = False):
     
     x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(inputs)
     x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(x)
+    if res_connect:
+        res = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(inputs)
+        x = add([x, res])
     return x
 
-def encoder_block(inputs, n_filters, pool_size = (2,2), strides = (2,2), dropout = 0, padding = 'valid'):
-    convblock = conv2d_block(inputs, n_filters, 3, padding)
+def encoder_block(inputs, n_filters, pool_size = (2,2), strides = (2,2), dropout = 0, padding = 'valid', res_connect = False):
+    convblock = conv2d_block(inputs, n_filters, 3, padding, res_connect = res_connect)
     pooled = MaxPooling2D(pool_size)(convblock)
     if dropout > 0:
         pooled = Dropout(dropout)(pooled)
@@ -39,7 +42,7 @@ def shapes_to_crop(target, reference):
     
     return (ch1, ch2), (cw1, cw2)
     
-def decoder_block(inputs,  concat_block, n_filters, kernel_size = (2,2), 
+def decoder_block(inputs,  concat_block, n_filters, kernel_size = (2,2), res_connect = False,
                   strides = (2,2), padding = 'valid', dropout = 0):
     
     x = Conv2DTranspose(n_filters, kernel_size, strides = strides, padding = padding)(inputs)
@@ -54,11 +57,11 @@ def decoder_block(inputs,  concat_block, n_filters, kernel_size = (2,2),
     if dropout > 0:
         c = Dropout(dropout)(c)
     
-    c = conv2d_block(c, n_filters, padding = padding)
+    c = conv2d_block(c, n_filters, padding = padding, res_connect = res_connect)
     
     return c
 
-def unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', 
+def unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_connect = False,
            padding = 'valid', filter_sizes = [64, 128, 256, 512, 1024]):
     
     levels = len(filter_sizes)-1
@@ -72,15 +75,15 @@ def unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid',
     encoders = []
     
     for i in range(levels):
-        encoder, pooled = encoder_block(pooled, n_filters = filter_sizes[i], dropout = dropout, padding = padding)
+        encoder, pooled = encoder_block(pooled, n_filters = filter_sizes[i], dropout = dropout, padding = padding, res_connect = res_connect)
         encoders.append(encoder)
     
-    bottle_neck = conv2d_block(pooled, n_filters = filter_sizes[-1], padding = padding)
+    bottle_neck = conv2d_block(pooled, n_filters = filter_sizes[-1], padding = padding, res_connect = res_connect)
     
     # decoder
     decoder = bottle_neck
     for i in range(levels-1, -1, -1):
-        decoder = decoder_block(decoder, encoders[i], n_filters = filter_sizes[i], dropout = dropout, padding = padding)
+        decoder = decoder_block(decoder, encoders[i], n_filters = filter_sizes[i], dropout = dropout, padding = padding, res_connect = res_connect)
     
     outputs = Conv2D(n_classes, (1,1), activation = out_activation)(decoder)
     
@@ -99,4 +102,10 @@ if __name__ == "__main__":
     same_padding_model = unet2d(input_size = (512, 512, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same')
     same_padding_model.summary()
     dot_img_file = '2dunet.png'
+    tf.keras.utils.plot_model(same_padding_model, to_file=dot_img_file, show_shapes=True)
+    
+    # res unet
+    same_padding_model = unet2d(input_size = (512, 512, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same', res_connect = True)
+    same_padding_model.summary()
+    dot_img_file = 'residual_2dunet.png'
     tf.keras.utils.plot_model(same_padding_model, to_file=dot_img_file, show_shapes=True)
