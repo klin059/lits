@@ -59,18 +59,10 @@ def decoder_3dblock(inputs,  concat_block, n_filters, kernel_size = (2,2,2), res
     
     return c
 
-
-def unet3d(input_size, n_classes=1, out_activation='sigmoid', res_connect = False,
+def unet_3dblock(inputs, n_classes=1, out_activation='sigmoid', res_connect = False,
            padding = 'same', filter_sizes = [64, 128, 256, 256], dropout=0.2):
-    
     levels = len(filter_sizes)-1
-    if padding == 'same':
-        for i in range(levels):
-            for j in range(3):
-                if input_size[j]%(2**i) != 0:
-                    raise ValueError("model output shape won't be the same as input shape due to rounding dimension during pooling")
     # encoder
-    inputs = Input(input_size)
     pooled = inputs
     encoders = []
     
@@ -86,10 +78,36 @@ def unet3d(input_size, n_classes=1, out_activation='sigmoid', res_connect = Fals
         decoder = decoder_3dblock(decoder, encoders[i], n_filters = filter_sizes[i], dropout = dropout, padding = padding, res_connect = res_connect)
     
     outputs = Conv3D(n_classes, (1,1,1), activation = out_activation)(decoder)
+    return inputs, outputs
+
+def unet3d(input_size, n_classes=1, out_activation='sigmoid', res_connect = False,
+           padding = 'same', filter_sizes = [64, 128, 256, 256], dropout=0.2):
     
-    model = Model(inputs = inputs, outputs = outputs)
+    levels = len(filter_sizes)-1
+    if padding == 'same':
+        for j in range(3):
+            if input_size[j]%(2**levels) != 0:
+                    raise ValueError("model output shape won't be the same as input shape due to rounding dimension during pooling")
     
-    return model
+    inputs, outputs = unet_3dblock(Input(input_size), n_classes, out_activation, res_connect,
+           padding, filter_sizes, dropout)
+    
+    
+    return Model(inputs = inputs, outputs = outputs)
+
+def cascaded_unet3d(input_size, n_classes=1, out_activation='sigmoid', res_connect = False,
+           padding = 'same', filter_sizes = [64, 128, 256, 256], dropout=0.2):
+    
+    inputs = Input(input_size)
+    
+    input1, output1 = unet_3dblock(inputs, n_classes, out_activation, res_connect,
+           padding, filter_sizes, dropout)
+    
+    _, output2 = unet_3dblock(output1, n_classes, out_activation, res_connect,
+           padding, filter_sizes, dropout)
+
+    return Model(inputs = inputs, outputs = [output1, output2])
+    
 
 
 
@@ -102,5 +120,11 @@ if __name__ == "__main__":
     
     unet_residual = unet3d(input_size = (512, 512, 200, 1), res_connect = True, n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same')
     unet_residual.summary()
-    dot_img_file = 'res3dunet.png'
+    dot_img_file = '3dunet_res_connect.png'
     tf.keras.utils.plot_model(unet_residual, to_file=dot_img_file, show_shapes=True)
+    
+    unet_cascade = cascaded_unet3d(input_size = (512, 512, 200, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same')
+    unet_cascade.summary()
+    dot_img_file = '3dunet_cascaded.png'
+    tf.keras.utils.plot_model(unet_cascade, to_file=dot_img_file, show_shapes=True)
+    

@@ -61,16 +61,10 @@ def decoder_block(inputs,  concat_block, n_filters, kernel_size = (2,2), res_con
     
     return c
 
-def unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_connect = False,
+def unet2d_block(inputs, n_classes=1, dropout=0, out_activation='sigmoid', res_connect = False,
            padding = 'valid', filter_sizes = [64, 128, 256, 512, 1024]):
-    
-    levels = len(filter_sizes)-1
-    if padding == 'same':
-        for i in range(levels):
-            if input_size[0]%(2**i) != 0 or input_size[1]%(2**i) != 0:
-                raise ValueError("model output shape won't be the same as input shape due to rounding dimension during pooling")
+    levels = len(filter_sizes)-1    
     # encoder
-    inputs = Input(input_size)
     pooled = inputs
     encoders = []
     
@@ -86,11 +80,28 @@ def unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_con
         decoder = decoder_block(decoder, encoders[i], n_filters = filter_sizes[i], dropout = dropout, padding = padding, res_connect = res_connect)
     
     outputs = Conv2D(n_classes, (1,1), activation = out_activation)(decoder)
-    
-    model = Model(inputs = inputs, outputs = outputs)
-    
-    return model
+    return inputs, outputs
 
+def unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_connect = False,
+           padding = 'valid', filter_sizes = [64, 128, 256, 512, 1024]):
+    
+    levels = len(filter_sizes)-1
+    if padding == 'same':
+        if input_size[0]%(2**levels) != 0 or input_size[1]%(2**levels) != 0:
+                raise ValueError("model output shape won't be the same as input shape due to rounding dimension during pooling")
+    
+    inputs, outputs = unet2d_block(Input(input_size), n_classes, dropout, out_activation, res_connect,
+           padding, filter_sizes)
+    
+    return Model(inputs = inputs, outputs = outputs)
+
+def cascaded_unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_connect = False,
+           padding = 'valid', filter_sizes = [64, 128, 256, 512, 1024]):
+    input1, output1 = unet2d_block(Input(input_size), n_classes, dropout, out_activation, res_connect,
+           padding, filter_sizes)
+    input2, output2 = unet2d_block(output1, n_classes, dropout, out_activation, res_connect,
+           padding, filter_sizes)
+    return Model(inputs = input1, outputs = [output1, output2])
 
 if __name__ == "__main__":
     import tensorflow as tf
@@ -107,5 +118,11 @@ if __name__ == "__main__":
     # res unet
     same_padding_model = unet2d(input_size = (512, 512, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same', res_connect = True)
     same_padding_model.summary()
-    dot_img_file = 'residual_2dunet.png'
+    dot_img_file = '2dunet_res_connect.png'
     tf.keras.utils.plot_model(same_padding_model, to_file=dot_img_file, show_shapes=True)
+    
+    # cascade unet
+    unet_cascade = cascaded_unet2d(input_size = (512, 512, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same')
+    unet_cascade.summary()
+    dot_img_file = '2dunet_cascaded.png'
+    tf.keras.utils.plot_model(unet_cascade, to_file=dot_img_file, show_shapes=True)
