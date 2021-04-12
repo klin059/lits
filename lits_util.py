@@ -206,6 +206,70 @@ class DataGenerator_liverMask_wholeVolume(tf.keras.utils.Sequence):
 
         return X, y
     
+class DataGenerator_2class_wholeVolume(tf.keras.utils.Sequence):
+    """ generate samples for liver and liver lesion segmentation with the whole volume 
+    defined in param.resized_vol_shape
+    """
+    def __init__(self, param, sample_list, shuffle = True):
+        """
+        sample_list are ID numbers of the training_list
+        """
+        self.batch_size = param.batch_size
+        self.shuffle = shuffle
+        self.base_dir = param.data_dir
+        self.dim = param.resized_vol_shape
+        self.num_channels = param.num_channels
+        self.num_classes = param.num_classes
+        self.verbose = param.verbose
+        self.sample_list = sample_list  
+        self.on_epoch_end()
+#        self.patch_per_ID = param.patch_per_ID
+
+    def on_epoch_end(self):
+        'Updates indexes after each epoch'
+        self.indexes = np.arange(len(self.sample_list))
+        if self.shuffle == True:
+            np.random.shuffle(self.indexes)
+
+    def __len__(self):
+        'Denotes the number of batches per epoch'
+        return int(np.floor(len(self.sample_list) / self.batch_size))
+
+    def __data_generation(self, list_IDs_temp):
+        
+        'Generates data containing batch_size samples'
+        
+        # Initialization
+        # patch_per_ID means generating patch_per_ID patches for one volume loaded
+        X = np.zeros((self.batch_size, *self.dim, self.num_channels),
+                     dtype=np.float64)
+        y = np.zeros((self.batch_size, *self.dim, self.num_classes),
+                     dtype=np.float64)
+
+        # Generate data
+        for i, ID in enumerate(list_IDs_temp):
+            vol = np.load(os.path.join(self.base_dir, 'vol' + str(ID) + '.npy'))
+            mask = np.load(os.path.join(self.base_dir, 'mask' + str(ID) + '.npy'))
+            X[i]= vol[..., np.newaxis]
+            liver_mask = mask>0 
+            lesion_mask = mask == 2
+            y[i,...,0] = liver_mask
+            y[i,...,1] = lesion_mask
+
+        return X, y
+    
+    def __getitem__(self, index):
+        'Generate one batch of data'
+        # Generate indexes of the batch
+        indexes = self.indexes[
+                  index * self.batch_size: (index + 1) * self.batch_size]
+        # Find list of IDs
+        sample_list_temp = [self.sample_list[k] for k in indexes]
+        # Generate data
+        X, y = self.__data_generation(sample_list_temp)
+
+        return X, y
+    
 
 # model prediction / utility
 def model_prediction(model, ID, param, threshold = 0.5):
