@@ -100,14 +100,21 @@ def unet3d(input_size, n_classes=1, out_activation='sigmoid', res_connect = Fals
     return Model(inputs = inputs, outputs = outputs)
 
 def cascaded_unet3d(input_size, n_classes=1, out_activation='sigmoid', res_connect = False,
-           padding = 'same', filter_size1 = [64, 128, 256, 256], filter_size2 = [64, 128, 256, 256], dropout=0.2):
+           padding = 'same', filter_size1 = [64, 128, 256, 256], filter_size2 = [64, 128, 256, 256], dropout=0.2,
+           add_input = True):
+    """ 
+    add_input adds original input to the output of the 1st unet and feed the added input to the 2nd unet
+    """
     
     inputs = Input(input_size)
     
     input1, output1 = unet_3dblock(inputs, n_classes, out_activation, res_connect,
            padding, filter_size1, dropout)
-    
-    _, output2 = unet_3dblock(output1, n_classes, out_activation, res_connect,
+    if add_input:
+        input2 = add([input1, output1])
+    else:
+        input2 = output1
+    _, output2 = unet_3dblock(input2, n_classes, out_activation, res_connect,
            padding, filter_size2, dropout)
 
     return Model(inputs = inputs, outputs = [output1, output2])

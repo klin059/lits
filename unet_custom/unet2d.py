@@ -10,13 +10,12 @@ from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dropout, concat
 
 def conv2d_block(inputs, n_filters, kernel_size = 3, padding = 'valid', res_connect = False):
     
-    x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(inputs)
-    x = BatchNormalization()(x)
-    x = Activation("relu")(x)
+    x = inputs
+    for i in range(2):
+        x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(inputs)
+        x = BatchNormalization()(x)
+        x = Activation("relu")(x)
     
-    x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(x)
-    x = BatchNormalization()(x)
-    x = Activation("relu")(x)
     
     if res_connect:
         res = Conv2D(n_filters, kernel_size = 1, padding = padding, activation = 'relu')(inputs)
@@ -102,10 +101,16 @@ def unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_con
     return Model(inputs = inputs, outputs = outputs)
 
 def cascaded_unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_connect = False,
-           padding = 'valid', filter_size1 = [64, 128, 256, 512, 1024], filter_size2 = [32, 64, 128, 128]):
+           padding = 'valid', filter_size1 = [64, 128, 256, 512, 1024], filter_size2 = [32, 64, 128, 128], 
+           add_input = True):
     input1, output1 = unet2d_block(Input(input_size), n_classes, dropout, out_activation, res_connect,
            padding, filter_size1)
-    input2, output2 = unet2d_block(output1, n_classes, dropout, out_activation, res_connect,
+    if add_input:
+        input2 = add([input1, output1])
+    else:
+        input2 = output1
+    
+    input2, output2 = unet2d_block(input2, n_classes, dropout, out_activation, res_connect,
            padding, filter_size2)
     return Model(inputs = input1, outputs = [output1, output2])
 
