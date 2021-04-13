@@ -33,8 +33,12 @@ def conv_3dblock(inputs, n_filters, kernel_size = (3,3,3), padding = 'same', dro
     x = BatchNormalization()(x)
     if dropout > 0:
         x = SpatialDropout3D(dropout)(x)
+    x = Activation("relu")(x)
     x = Conv3D(n2, kernel_size, activation = 'relu', padding = padding)(inputs)
     x = BatchNormalization()(x)
+    if dropout > 0:
+        x = SpatialDropout3D(dropout)(x)
+    x = Activation("relu")(x)
     if res_connect:
         res = Conv3D(n2, kernel_size = (1,1,1), activation = 'relu', padding = padding)(inputs)
         x = add([x, res])
@@ -96,15 +100,15 @@ def unet3d(input_size, n_classes=1, out_activation='sigmoid', res_connect = Fals
     return Model(inputs = inputs, outputs = outputs)
 
 def cascaded_unet3d(input_size, n_classes=1, out_activation='sigmoid', res_connect = False,
-           padding = 'same', filter_sizes = [64, 128, 256, 256], dropout=0.2):
+           padding = 'same', filter_size1 = [64, 128, 256, 256], filter_size2 = [64, 128, 256, 256], dropout=0.2):
     
     inputs = Input(input_size)
     
     input1, output1 = unet_3dblock(inputs, n_classes, out_activation, res_connect,
-           padding, filter_sizes, dropout)
+           padding, filter_size1, dropout)
     
     _, output2 = unet_3dblock(output1, n_classes, out_activation, res_connect,
-           padding, filter_sizes, dropout)
+           padding, filter_size2, dropout)
 
     return Model(inputs = inputs, outputs = [output1, output2])
     
@@ -123,7 +127,8 @@ if __name__ == "__main__":
     dot_img_file = '3dunet_res_connect.png'
     tf.keras.utils.plot_model(unet_residual, to_file=dot_img_file, show_shapes=True)
     
-    unet_cascade = cascaded_unet3d(input_size = (512, 512, 200, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same')
+    unet_cascade = cascaded_unet3d(input_size = (512, 512, 200, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same', 
+                                   filter_size1 = [64, 128, 256, 256], filter_size2 = [32, 64, 128, 128])
     unet_cascade.summary()
     dot_img_file = '3dunet_cascaded.png'
     tf.keras.utils.plot_model(unet_cascade, to_file=dot_img_file, show_shapes=True)

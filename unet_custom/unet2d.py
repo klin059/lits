@@ -6,12 +6,18 @@ Created on Mon Mar 29 16:11:46 2021
 """
 # unet 
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dropout, concatenate, Conv2DTranspose, Cropping2D, add
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Dropout, concatenate, Conv2DTranspose, Cropping2D, add, Activation, BatchNormalization
 
 def conv2d_block(inputs, n_filters, kernel_size = 3, padding = 'valid', res_connect = False):
     
     x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(inputs)
+    x = BatchNormalization()(x)
+    x = Activation("relu")(x)
+    
     x = Conv2D(n_filters, kernel_size, padding = padding, activation = 'relu')(x)
+    x = BatchNormalization()(x)
+    x = Activation("relu")(x)
+    
     if res_connect:
         res = Conv2D(n_filters, kernel_size = 1, padding = padding, activation = 'relu')(inputs)
         x = add([x, res])
@@ -96,18 +102,15 @@ def unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_con
     return Model(inputs = inputs, outputs = outputs)
 
 def cascaded_unet2d(input_size, n_classes=1, dropout=0, out_activation='sigmoid', res_connect = False,
-           padding = 'valid', filter_sizes = [64, 128, 256, 512, 1024]):
+           padding = 'valid', filter_size1 = [64, 128, 256, 512, 1024], filter_size2 = [32, 64, 128, 128]):
     input1, output1 = unet2d_block(Input(input_size), n_classes, dropout, out_activation, res_connect,
-           padding, filter_sizes)
+           padding, filter_size1)
     input2, output2 = unet2d_block(output1, n_classes, dropout, out_activation, res_connect,
-           padding, filter_sizes)
+           padding, filter_size2)
     return Model(inputs = input1, outputs = [output1, output2])
 
 if __name__ == "__main__":
     import tensorflow as tf
-    # original unet model architecture as described in the unet paper (with "valid" padding)
-#    orig_model = unet2d(input_size = (572, 572, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'valid')
-#    orig_model.summary()
     
     # unet with "same" padding
     same_padding_model = unet2d(input_size = (512, 512, 1), n_classes=1, dropout=0, out_activation='sigmoid', padding = 'same')
