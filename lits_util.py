@@ -91,6 +91,19 @@ class DataGenerator_base(tf.keras.utils.Sequence):
     def __len__(self):
         'Denotes the number of batches per epoch'
         return int(np.floor(len(self.sample_list) / self.batch_size))
+    
+    def generate_patch(self, vol, mask):
+        # generate patch_per_ID patches
+        max_index = vol.shape[-1]-self.dim[-1]
+        vol_patch = np.zeros((self.patch_per_ID, *self.dim))
+        mask_patch = np.zeros((self.patch_per_ID, *self.dim))
+        
+        for i in range(self.patch_per_ID):
+            start_index = np.random.choice([i for i in range(max_index)])
+            end_index = start_index + self.dim[-1]
+            vol_patch[i] = vol[:,:,start_index:end_index]
+            mask_patch[i] = mask[:,:,start_index:end_index]
+        return vol_patch[..., np.newaxis], mask_patch
 
 #=============================================================================
 # generators for predicting liver and lesion at the same time
@@ -139,20 +152,6 @@ class DataGenerator2class(DataGenerator_base):
 
         return X, y
 
-    
-    def generate_patch(self, vol, mask):
-        # generate patch_per_ID patches
-        max_index = vol.shape[-1]-self.dim[-1]
-        vol_patch = np.zeros((self.patch_per_ID, *self.dim))
-        mask_patch = np.zeros((self.patch_per_ID, *self.dim))
-        
-        for i in range(self.patch_per_ID):
-            start_index = np.random.choice([i for i in range(max_index)])
-            end_index = start_index + self.dim[-1]
-            vol_patch[i] = vol[:,:,start_index:end_index]
-            mask_patch[i] = mask[:,:,start_index:end_index]
-        return vol_patch[..., np.newaxis], mask_patch
-
 # --------------------- generators for whole volume samples---------------------
 class DataGenerator_2class_wholeVolume(DataGenerator_base):
     """ 
@@ -195,6 +194,61 @@ class DataGenerator_2class_wholeVolume(DataGenerator_base):
 
         return X, y
     
+class DataGenerator_2class_cascade(DataGenerator_base):
+    """ 
+    output X of shape (batch_size*patch_per_ID, *patch_shape, num_channels)
+    output y of shape [(batch_size*patch_per_ID, *patch_shape, num_classes)]*2 where y[0] represent liver mask and y[1] represents lesion mask
+    volume shape defined in param.resized_vol_shape
+    
+    generate samples for liver and liver lesion segmentation with the patches of volumes 
+    defined in param.resized_vol_shape and cascaded unet model architecture
+    """
+    def __init__(self, param, sample_list, shuffle = True):
+        super().__init__(param, sample_list, shuffle = shuffle)
+        self.num_classes = 1
+
+    def __data_generation(self, list_IDs_temp):
+        
+        'Generates data containing batch_size samples'
+        
+        # Initialization
+        # patch_per_ID means generating patch_per_ID patches for one volume loaded
+        X = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_channels),
+                     dtype=np.float64)
+        y0 = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_classes),
+                     dtype=np.float64)
+        y1 = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_classes),
+                     dtype=np.float64)
+
+        # Generate data
+        for i, ID in enumerate(list_IDs_temp):
+            vol = np.load(os.path.join(self.base_dir, 'vol' + str(ID) + '.npy'))
+            mask = np.load(os.path.join(self.base_dir, 'mask' + str(ID) + '.npy'))
+            if vol.shape[-1] < self.dim[-1]:
+                raise ValueError("volume depth less than patch depth")
+            # generate patch_per_ID patches per ID
+            start, end = i*self.patch_per_ID, (i+1)*self.patch_per_ID
+            X[start:end], tempy = self.generate_patch(vol, mask)
+            # tempy = tempy[..., np.newaxis]
+            y0[start:end, ..., 0] = tempy>0
+            y1[start:end, ..., 0] = tempy==2            
+            # liver_mask = (tempy>0 )  
+            # lesion_mask = (tempy == 2)  #.astype('int')
+        return X, [y0, y1]
+    
+    def __getitem__(self, index):
+        'Generate one batch of data'
+        # Generate indexes of the batch
+        indexes = self.indexes[
+                  index * self.batch_size: (index + 1) * self.batch_size]
+        # Find list of IDs
+        sample_list_temp = [self.sample_list[k] for k in indexes]
+        # Generate data
+        X, y = self.__data_generation(sample_list_temp)
+        return X, y
+    
+    
+    
 class DataGenerator_2class_wholeVolume_cascade(DataGenerator_base):
     """ 
     output X of shape (batch_size,*resized_vol_shape, num_channels)
@@ -212,23 +266,16 @@ class DataGenerator_2class_wholeVolume_cascade(DataGenerator_base):
         
         'Generates data containing batch_size samples'
         
-        # Initialization
-        # patch_per_ID means generating patch_per_ID patches for one volume loaded
         X = np.zeros((self.batch_size, *self.dim, self.num_channels),
-                     dtype=np.float64)
-        y = np.zeros((2, self.batch_size, *self.dim, self.num_classes),
-                     dtype=np.float64)
+                     dtype=np.float32)
 
         # Generate data
         for i, ID in enumerate(list_IDs_temp):
             vol = np.load(os.path.join(self.base_dir, 'vol' + str(ID) + '.npy'))
             mask = np.load(os.path.join(self.base_dir, 'mask' + str(ID) + '.npy'))
+            mask = mask[np.newaxis, ..., np.newaxis]
             X[i]= vol[..., np.newaxis]
-            liver_mask = (mask>0 )  #.astype('float32')
-            lesion_mask = (mask == 2)  #.astype('int')
-            y[0, 0, ..., 0] = liver_mask
-            y[1, 0, ..., 0] = lesion_mask
-        return X, [y[0], y[1]]
+        return X, [(mask>0).astype("float32") , (mask == 2).astype("float32")]
     
     def __getitem__(self, index):
         'Generate one batch of data'
