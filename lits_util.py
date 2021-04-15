@@ -122,9 +122,9 @@ class DataGenerator2class(DataGenerator_base):
         'Generates data containing batch_size samples'
         # patch_per_ID means generating patch_per_ID patches for one volume loaded
         X = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_channels),
-                     dtype=np.float64)
+                     dtype=np.float32)
         y = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_classes),
-                     dtype=np.float64)
+                     dtype=np.float16)
 
         # Generate data
         for i, ID in enumerate(list_IDs_temp):
@@ -167,9 +167,9 @@ class DataGenerator_2class_wholeVolume(DataGenerator_base):
         
         'Generates data containing batch_size samples'        
         X = np.zeros((self.batch_size, *self.dim, self.num_channels),
-                     dtype=np.float64)
+                     dtype=np.float32)
         y = np.zeros((self.batch_size, *self.dim, self.num_classes),
-                     dtype=np.float64)
+                     dtype=np.float16)
 
         # Generate data
         for i, ID in enumerate(list_IDs_temp):
@@ -214,11 +214,11 @@ class DataGenerator_2class_cascade(DataGenerator_base):
         # Initialization
         # patch_per_ID means generating patch_per_ID patches for one volume loaded
         X = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_channels),
-                     dtype=np.float64)
+                     dtype=np.float32)
         y0 = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_classes),
-                     dtype=np.float64)
+                     dtype=np.float16)
         y1 = np.zeros((self.batch_size*self.patch_per_ID, *self.dim, self.num_classes),
-                     dtype=np.float64)
+                     dtype=np.float16)
 
         # Generate data
         for i, ID in enumerate(list_IDs_temp):
@@ -261,6 +261,7 @@ class DataGenerator_2class_wholeVolume_cascade(DataGenerator_base):
     def __init__(self, param, sample_list, shuffle = True):
         super().__init__(param, sample_list, shuffle = shuffle)
         self.dim = param.resized_vol_shape
+        self.num_classes = 1
 
     def __data_generation(self, list_IDs_temp):
         
@@ -268,14 +269,19 @@ class DataGenerator_2class_wholeVolume_cascade(DataGenerator_base):
         
         X = np.zeros((self.batch_size, *self.dim, self.num_channels),
                      dtype=np.float32)
+        y0 = np.zeros((self.batch_size, *self.dim, self.num_classes),
+                     dtype=np.float16)
+        y1 = np.zeros((self.batch_size, *self.dim, self.num_classes),
+                     dtype=np.float16)
 
         # Generate data
         for i, ID in enumerate(list_IDs_temp):
             vol = np.load(os.path.join(self.base_dir, 'vol' + str(ID) + '.npy'))
             mask = np.load(os.path.join(self.base_dir, 'mask' + str(ID) + '.npy'))
-            mask = mask[np.newaxis, ..., np.newaxis]
             X[i]= vol[..., np.newaxis]
-        return X, [(mask>0).astype("float32") , (mask == 2).astype("float32")]
+            y0[i, ..., 0] = mask>0
+            y1[i, ..., 0] = mask==2  
+        return X, [y0, y1]
     
     def __getitem__(self, index):
         'Generate one batch of data'
@@ -310,9 +316,9 @@ class DataGenerator_liverMask_wholeVolume(DataGenerator_base):
         'Generates data containing batch_size samples'
 
         X = np.zeros((self.batch_size, *self.dim, self.num_channels),
-                     dtype=np.float64)
+                     dtype=np.float32)
         y = np.zeros((self.batch_size, *self.dim, self.num_classes),
-                     dtype=np.float64)
+                     dtype=np.float16)
 
         # Generate data
         for i, ID in enumerate(list_IDs_temp):
